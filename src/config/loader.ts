@@ -13,11 +13,12 @@ export function loadConfig(configPath?: string): AppConfig {
   let rawYaml = fs.readFileSync(filePath, 'utf-8');
 
   // Interpolate environment variables: ${VAR} and ${VAR:-default}
+  // Returns empty string for unset vars without defaults — lets Zod validate required vs optional
   rawYaml = rawYaml.replace(/\$\{(\w+)(?::-(.*?))?\}/g, (_, envVar, defaultVal) => {
     const value = process.env[envVar];
     if (value !== undefined) return value;
     if (defaultVal !== undefined) return defaultVal;
-    throw new Error(`Environment variable ${envVar} is not set and has no default`);
+    return '';
   });
 
   const parsed = yaml.load(rawYaml) as Record<string, unknown>;

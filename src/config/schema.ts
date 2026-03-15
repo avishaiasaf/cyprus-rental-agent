@@ -80,8 +80,14 @@ export const TelegramChannelSchema = z.object({
 
 export const TelegramChannelsConfigSchema = z.object({
   channels: z.array(TelegramChannelSchema).default([]),
-  api_id: z.coerce.number().optional(),
-  api_hash: z.string().optional(),
+  api_id: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : Number(v)),
+    z.number().optional(),
+  ),
+  api_hash: z.preprocess(
+    (v) => (v === '' ? undefined : v),
+    z.string().optional(),
+  ),
 });
 
 export const ConfigSchema = z.object({
