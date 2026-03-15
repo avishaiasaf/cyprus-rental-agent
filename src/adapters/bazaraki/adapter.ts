@@ -98,6 +98,20 @@ export class BazarakiAdapter extends BaseAdapter {
 
     ctx.logger.debug({ source: this.name, url }, 'Scraping detail page');
 
+    // Strategy 1: Try HTTP client first (faster, often bypasses JS-based anti-bot)
+    let html: string | null = null;
+    try {
+      html = await ctx.httpClient.get(url);
+      if (html && !isAntiBot(html)) {
+        ctx.logger.debug({ source: this.name, url, strategy: 'http' }, 'Detail page fetched via HTTP');
+        return parseDetailPage(html, url, externalId, this.name, undefined, ctx.logger);
+      }
+      ctx.logger.debug({ source: this.name, url }, 'HTTP fetch returned anti-bot page, trying browser');
+    } catch (err) {
+      ctx.logger.debug({ source: this.name, url, err }, 'HTTP fetch failed, trying browser');
+    }
+
+    // Strategy 2: Fall back to browser with persistent context
     const page = await this.getDetailPage();
 
     try {
@@ -117,7 +131,7 @@ export class BazarakiAdapter extends BaseAdapter {
         await page.waitForTimeout(5000);
       }
 
-      let html = await page.content();
+      html = await page.content();
 
       // If it's an anti-bot page, wait up to 15 more seconds for it to resolve
       if (isAntiBot(html)) {
