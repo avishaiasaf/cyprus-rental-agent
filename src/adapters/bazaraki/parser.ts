@@ -59,6 +59,20 @@ export function parseIndexPage(
   return listings;
 }
 
+/**
+ * Check if the HTML is an anti-bot challenge page rather than the actual listing.
+ */
+export function isAntiBot(html: string): boolean {
+  const lower = html.toLowerCase();
+  return (
+    lower.includes('security service to protect') ||
+    lower.includes('verifies you are not a bot') ||
+    lower.includes('checking your browser') ||
+    lower.includes('cloudflare') ||
+    (lower.includes('<h1>www.bazaraki.com</h1>') && !lower.includes('announcement'))
+  );
+}
+
 export function parseDetailPage(
   html: string,
   url: string,
@@ -68,6 +82,23 @@ export function parseDetailPage(
   logger?: Logger,
 ): RawListing {
   const $ = cheerioLoad(html);
+
+  // Detect anti-bot challenge page
+  if (isAntiBot(html)) {
+    logger?.warn({ source, url }, 'Anti-bot challenge page detected, returning minimal listing');
+    const listingType: 'rent' | 'sale' = url.includes('real-estate-to-rent') ? 'rent' : 'sale';
+    return {
+      externalId,
+      source,
+      url,
+      title: 'Untitled',
+      listingType,
+      price: null,
+      currency: 'EUR',
+      location: '',
+      images: [],
+    };
+  }
 
   // Title
   const title = $(DETAIL_SELECTORS.title).first().text().trim() || 'Untitled';
@@ -320,19 +351,30 @@ function extractDescription($: CheerioAPI, browserData?: BrowserExtracted, logge
 function parsePrice(text: string): number | null {
   if (!text) return null;
 
-  // First try to extract a clean price pattern like "€1,200" or "1200.00"
-  const pricePattern = text.match(/[€$£]?\s*([\d]{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
-  if (pricePattern) {
-    const cleaned = pricePattern[1].replace(/,/g, '');
+  // Strategy 1: Extract price with currency symbol (most reliable)
+  const currencyPattern = text.match(/[€$£]\s*([\d]{1,3}(?:[,.]?\d{3})*(?:[.,]\d{1,2})?)/);
+  if (currencyPattern) {
+    const cleaned = currencyPattern[1].replace(/,/g, '');
     const num = parseFloat(cleaned);
-    // Sanity check: reject prices above 100 million (likely parsing error)
     if (!isNaN(num) && num > 0 && num < 100_000_000) return num;
   }
 
-  // Fallback: strip everything non-numeric
-  const cleaned = text.replace(/[€$£]/g, '').replace(/[^\d.,]/g, '').replace(/,/g, '');
-  const num = parseFloat(cleaned);
-  // Sanity check: reject absurd values (phone numbers, reference IDs, etc.)
-  if (isNaN(num) || num <= 0 || num >= 100_000_000) return null;
-  return num;
+  // Strategy 2: Extract number followed by EUR/USD/GBP keyword
+  const keywordPattern = text.match(/([\d]{1,3}(?:[,.]?\d{3})*(?:[.,]\d{1,2})?)\s*(?:EUR|USD|GBP|eur|euro)/);
+  if (keywordPattern) {
+    const cleaned = keywordPattern[1].replace(/,/g, '');
+    const num = parseFloat(cleaned);
+    if (!isNaN(num) && num > 0 && num < 100_000_000) return num;
+  }
+
+  // Strategy 3: Standalone large number (likely a price if > 50 for real estate)
+  const standalonePattern = text.match(/\b([\d]{1,3}(?:[,.]?\d{3})+(?:[.,]\d{1,2})?)\b/);
+  if (standalonePattern) {
+    const cleaned = standalonePattern[1].replace(/,/g, '');
+    const num = parseFloat(cleaned);
+    // Only accept numbers > 50 (no real estate is cheaper than €50)
+    if (!isNaN(num) && num > 50 && num < 100_000_000) return num;
+  }
+
+  return null;
 }
