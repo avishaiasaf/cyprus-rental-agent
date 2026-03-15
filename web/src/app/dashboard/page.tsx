@@ -1,25 +1,64 @@
 'use client';
 
-import { useQuery } from '@tanstack/react-query';
-import { getStats, getScrapeRuns, getSources } from '@/lib/api';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getStats, getScrapeRuns, getSources, triggerScrape, getScrapeStatus } from '@/lib/api';
 import { Navbar } from '@/components/navbar';
-import { Loader2, Database, Activity, Server, Clock } from 'lucide-react';
+import { Loader2, Database, Activity, Server, Clock, Play, RefreshCw } from 'lucide-react';
 
 export default function Dashboard() {
+  const queryClient = useQueryClient();
+  const [scrapeTriggered, setScrapeTriggered] = useState(false);
+
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ['stats'],
     queryFn: getStats,
+    refetchInterval: scrapeTriggered ? 10000 : false,
   });
 
   const { data: runs, isLoading: runsLoading } = useQuery({
     queryKey: ['scrape-runs'],
     queryFn: () => getScrapeRuns(10),
+    refetchInterval: scrapeTriggered ? 5000 : false,
   });
 
   const { data: sources, isLoading: sourcesLoading } = useQuery({
     queryKey: ['sources'],
     queryFn: getSources,
+    refetchInterval: scrapeTriggered ? 10000 : false,
   });
+
+  const { data: scrapeStatus } = useQuery({
+    queryKey: ['scrape-status'],
+    queryFn: getScrapeStatus,
+    refetchInterval: scrapeTriggered ? 3000 : 15000,
+  });
+
+  const isRunning = scrapeStatus?.running ?? false;
+
+  // Auto-stop polling when scrape completes
+  if (scrapeTriggered && !isRunning) {
+    // Small delay to let final stats update
+    setTimeout(() => {
+      setScrapeTriggered(false);
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['scrape-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+    }, 2000);
+  }
+
+  const handleRunScrape = async () => {
+    try {
+      await triggerScrape();
+      setScrapeTriggered(true);
+      queryClient.invalidateQueries({ queryKey: ['scrape-status'] });
+      queryClient.invalidateQueries({ queryKey: ['scrape-runs'] });
+    } catch (err: any) {
+      if (err?.message?.includes('409')) {
+        setScrapeTriggered(true);
+      }
+    }
+  };
 
   const isLoading = statsLoading || runsLoading || sourcesLoading;
 
@@ -28,7 +67,30 @@ export default function Dashboard() {
       <Navbar />
 
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
-        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <button
+            onClick={handleRunScrape}
+            disabled={isRunning}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              isRunning
+                ? 'bg-yellow-100 text-yellow-700 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {isRunning ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                Scraping...
+              </>
+            ) : (
+              <>
+                <Play className="w-4 h-4" />
+                Run Scrapers
+              </>
+            )}
+          </button>
+        </div>
 
         {isLoading && (
           <div className="flex justify-center py-20">

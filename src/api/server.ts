@@ -1,9 +1,10 @@
 import express from 'express';
 import cors from 'cors';
 import type { AppConfig } from '../config/schema.js';
+import type { Orchestrator } from '../scraper/orchestrator.js';
 import * as db from '../db/queries.js';
 
-export function startApiServer(port: number, config: AppConfig): void {
+export function startApiServer(port: number, config: AppConfig, orchestrator?: Orchestrator): void {
   const app = express();
 
   app.use(cors());
@@ -116,6 +117,25 @@ export function startApiServer(port: number, config: AppConfig): void {
     } catch {
       res.status(500).json({ error: 'Internal Server Error' });
     }
+  });
+
+  // --- Manual Scrape Trigger ---
+  app.post('/api/scrape', async (_req, res) => {
+    if (!orchestrator) {
+      res.status(503).json({ error: 'Orchestrator not available' });
+      return;
+    }
+    if (orchestrator.isRunning()) {
+      res.status(409).json({ error: 'Scrape cycle already running', running: true });
+      return;
+    }
+    // Run in background, respond immediately
+    res.json({ message: 'Scrape cycle started', running: true });
+    orchestrator.runFullCycle().catch(() => {});
+  });
+
+  app.get('/api/scrape/status', async (_req, res) => {
+    res.json({ running: orchestrator?.isRunning() ?? false });
   });
 
   // --- Sources ---

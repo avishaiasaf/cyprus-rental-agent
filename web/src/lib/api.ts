@@ -128,3 +128,11 @@ export function updateWebhook(id: string, data: Partial<{ url: string; name: str
 export function deleteWebhook(id: string) {
   return fetchApi<{ ok: boolean }>(`/api/webhooks/${id}`, { method: 'DELETE' });
 }
+
+export function triggerScrape() {
+  return fetchApi<{ message: string; running: boolean }>('/api/scrape', { method: 'POST' });
+}
+
+export function getScrapeStatus() {
+  return fetchApi<{ running: boolean }>('/api/scrape/status');
+}

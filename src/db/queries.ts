@@ -10,6 +10,15 @@ export async function listingExists(source: string, externalId: string): Promise
   return result.rowCount! > 0;
 }
 
+export async function listingNeedsRescrape(source: string, externalId: string): Promise<boolean> {
+  const pool = getDb();
+  const result = await pool.query(
+    'SELECT 1 FROM listings WHERE source = $1 AND external_id = $2 AND (price IS NULL OR description IS NULL OR description = \'\')',
+    [source, externalId],
+  );
+  return result.rowCount! > 0;
+}
+
 export async function getExistingListing(source: string, externalId: string): Promise<StoredListing | undefined> {
   const pool = getDb();
   const result = await pool.query(
@@ -49,13 +58,23 @@ export async function upsertListing(listing: RawListing): Promise<{ id: number; 
     ON CONFLICT(source, external_id) DO UPDATE SET
       title = EXCLUDED.title,
       price = EXCLUDED.price,
-      description = EXCLUDED.description,
+      currency = EXCLUDED.currency,
+      price_per_sqm = EXCLUDED.price_per_sqm,
+      location = COALESCE(EXCLUDED.location, listings.location),
+      district = COALESCE(EXCLUDED.district, listings.district),
+      property_type = COALESCE(EXCLUDED.property_type, listings.property_type),
+      bedrooms = COALESCE(EXCLUDED.bedrooms, listings.bedrooms),
+      bathrooms = COALESCE(EXCLUDED.bathrooms, listings.bathrooms),
+      area_sqm = COALESCE(EXCLUDED.area_sqm, listings.area_sqm),
+      furnished = COALESCE(EXCLUDED.furnished, listings.furnished),
+      description = COALESCE(EXCLUDED.description, listings.description),
       images = EXCLUDED.images,
-      contact_name = EXCLUDED.contact_name,
-      contact_phone = EXCLUDED.contact_phone,
-      contact_email = EXCLUDED.contact_email,
-      agency_name = EXCLUDED.agency_name,
+      contact_name = COALESCE(EXCLUDED.contact_name, listings.contact_name),
+      contact_phone = COALESCE(EXCLUDED.contact_phone, listings.contact_phone),
+      contact_email = COALESCE(EXCLUDED.contact_email, listings.contact_email),
+      agency_name = COALESCE(EXCLUDED.agency_name, listings.agency_name),
       amenities = EXCLUDED.amenities,
+      listing_date = COALESCE(EXCLUDED.listing_date, listings.listing_date),
       last_seen_at = NOW(),
       is_active = TRUE
     RETURNING id

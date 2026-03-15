@@ -1,4 +1,4 @@
-scrape_interval_minutes: 300  # 5 hours
+scrape_interval_minutes: 60  # 1 hour
 
 filters:
   listing_type: rent          # rent | buy | any

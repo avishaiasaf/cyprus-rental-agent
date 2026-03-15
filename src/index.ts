@@ -34,9 +34,9 @@ async function main(): Promise<void> {
     onStart: () => logger.info('Telegram bot started'),
   });
 
-  // Start health check server
+  // Start API server (includes health check)
   if (config.health_check.enabled) {
-    startHealthServer(config.health_check.port, config);
+    startHealthServer(config.health_check.port, config, orchestrator);
     logger.info({ port: config.health_check.port }, 'Health check server started');
   }
 

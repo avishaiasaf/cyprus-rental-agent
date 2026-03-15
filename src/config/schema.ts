@@ -91,7 +91,7 @@ export const TelegramChannelsConfigSchema = z.object({
 });
 
 export const ConfigSchema = z.object({
-  scrape_interval_minutes: z.number().min(1).default(300),
+  scrape_interval_minutes: z.number().min(1).default(60),
   filters: FiltersSchema.default({}),
   proxies: ProxySchema.default({}),
   telegram: TelegramSchema,

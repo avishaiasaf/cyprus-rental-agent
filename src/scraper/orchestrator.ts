@@ -172,14 +172,20 @@ export class Orchestrator {
 
       this.logger.info({ source: adapter.name, count: discovered.length }, 'Discovered listings');
 
-      // Filter to new listings
+      // Filter to new listings + existing listings missing details
       const newListings = [];
+      const rescrapeListings = [];
       for (const d of discovered) {
         if (!(await db.listingExists(adapter.name, d.externalId))) {
           newListings.push(d);
+        } else if (await db.listingNeedsRescrape(adapter.name, d.externalId)) {
+          rescrapeListings.push(d);
         }
       }
-      this.logger.info({ source: adapter.name, newCount: newListings.length }, 'New listings to scrape');
+      this.logger.info(
+        { source: adapter.name, newCount: newListings.length, rescrapeCount: rescrapeListings.length },
+        'Listings to scrape',
+      );
 
       // Scrape detail pages
       for (const disc of newListings) {
@@ -237,11 +243,25 @@ export class Orchestrator {
         }
       }
 
+      // Re-scrape existing listings that are missing details (price, description)
+      for (const disc of rescrapeListings) {
+        if (this.abortController.signal.aborted) break;
+
+        try {
+          const listing = await adapter.scrapeDetail(disc.url, disc.externalId, ctx);
+          await db.upsertListing(listing);
+          updatedCount++;
+          this.logger.info({ source: adapter.name, externalId: disc.externalId }, 'Re-scraped listing with missing details');
+        } catch (err) {
+          this.logger.error({ source: adapter.name, url: disc.url, err }, 'Failed to re-scrape detail');
+        }
+      }
+
       // Touch all discovered listings (update last_seen_at)
       for (const d of discovered) {
         await db.touchListing(adapter.name, d.externalId);
       }
-      updatedCount = discovered.length - newListings.length;
+      updatedCount += discovered.length - newListings.length - rescrapeListings.length;
 
       return {
         success: true,
