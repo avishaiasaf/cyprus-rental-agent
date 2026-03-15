@@ -76,20 +76,36 @@ export const INDEX_SELECTORS = {
   paginationNext: '.pagination .next, .js-pagination-next',
 } as const;
 
-// Detail page selectors
+// Detail page selectors — use hyphenated class names (not BEM double-underscore)
 export const DETAIL_SELECTORS = {
-  title: 'h1.announcement__title, h1',
-  price: '.announcement__price .actual-price, .announcement__price',
-  location: '.announcement__location, .announcement-meta__location, .js-map-link',
-  description: '.announcement__description .js-description, .announcement__description',
+  title: 'h1.announcement-title, h1.announcement__title, h1',
+  // Price: primary site classes, then legacy BEM, then data/meta fallbacks
+  price: [
+    '.announcement-price__cost',
+    '.announcement-price .actual-price',
+    '.announcement-price',
+    '.announcement__price .actual-price',
+    '.announcement__price',
+    '[data-price]',
+    'meta[itemprop="price"]',
+  ].join(', '),
+  location: '.announcement-location, .announcement__location, .announcement-meta__location, .js-map-link',
+  // Description: primary site classes, then legacy BEM, then meta fallbacks
+  description: [
+    '.announcement-description .js-description',
+    '.announcement-description',
+    '.announcement__description .js-description',
+    '.announcement__description',
+    '[itemprop="description"]',
+  ].join(', '),
   images: '.gallery__item img, .announcement-gallery__item img, .js-gallery-item img',
   gallery: '.announcement-gallery img, .gallery img, [data-fancybox] img',
-  specs: '.announcement-characteristics li, .announcement__character li',
-  specsLabel: 'span:first-child, .key, dt',
-  specsValue: 'span:last-child, .value, dd',
+  specs: '.announcement-characteristics li, .announcement__character li, .chars-column li',
+  specsLabel: '.key-chars, span:first-child, .key, dt',
+  specsValue: '.value-chars, span:last-child, .value, dd',
   contact: {
     name: '.announcement-author__name, .author-name',
-    phone: '.announcement-author__phone a, .js-phone-number',
+    phone: '.announcement-author__phone a, .js-phone-number, [data-phone-number]',
     agency: '.announcement-author__agency, .author-agency',
   },
   date: '.announcement-meta__date, .announcement-meta time, .date-meta',

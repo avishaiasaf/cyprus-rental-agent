@@ -89,6 +89,123 @@ export abstract class BaseAdapter implements SourceAdapter {
     }
   }
 
+  /**
+   * Enhanced browser fetch for detail pages: returns both HTML and in-browser extracted data.
+   * Uses page.evaluate() to extract price/description directly from the live DOM,
+   * which catches dynamically-rendered content that Cheerio may miss.
+   */
+  protected async fetchDetailWithBrowser(url: string): Promise<{
+    html: string;
+    extracted: { price?: string | null; description?: string | null };
+  }> {
+    if (!this.ctx.browser) throw new Error(`Browser not available for ${this.name}`);
+    const context = await this.ctx.browser.newContext({
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+      viewport: { width: 1366, height: 768 },
+      locale: 'en-US',
+      timezoneId: 'Europe/Nicosia',
+    });
+
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => false });
+      Object.defineProperty(globalThis, 'chrome', { value: { runtime: {} }, writable: true });
+    });
+
+    const page = await context.newPage();
+    try {
+      await page.route('**/*.{png,jpg,jpeg,gif,svg,woff,woff2,ttf,eot}', route => route.abort());
+
+      await page.goto(url, {
+        waitUntil: 'domcontentloaded',
+        timeout: this.ctx.globalConfig.browser.timeout_ms,
+      });
+
+      // Wait for price element specifically (up to 5s), then fallback to generic wait
+      try {
+        await page.waitForSelector(
+          '.announcement-price, .announcement__price, [data-price], meta[itemprop="price"]',
+          { timeout: 5000 },
+        );
+      } catch {
+        // Price element didn't appear, continue with generic wait
+        await page.waitForTimeout(2000);
+      }
+
+      // Extract price and description directly from the live DOM via page.evaluate()
+      // The function runs in browser context so it has access to `document`.
+      const extracted = await page.evaluate(`
+        (() => {
+          let price = null;
+          let description = null;
+
+          // Price extraction strategies
+          const priceSelectors = [
+            '.announcement-price__cost',
+            '.announcement-price .actual-price',
+            '.announcement-price',
+            '.announcement__price .actual-price',
+            '.announcement__price',
+          ];
+          for (const sel of priceSelectors) {
+            const el = document.querySelector(sel);
+            if (el) {
+              const text = (el.textContent || '').trim();
+              if (text && /[\\d]/.test(text)) {
+                price = text;
+                break;
+              }
+            }
+          }
+
+          // Try data-price attribute
+          if (!price) {
+            const dpEl = document.querySelector('[data-price]');
+            if (dpEl) price = dpEl.getAttribute('data-price');
+          }
+
+          // Try meta itemprop price
+          if (!price) {
+            const metaEl = document.querySelector('meta[itemprop="price"]');
+            if (metaEl && metaEl.content) price = metaEl.content;
+          }
+
+          // Description extraction strategies
+          const descSelectors = [
+            '.announcement-description .js-description',
+            '.announcement-description',
+            '.announcement__description .js-description',
+            '.announcement__description',
+            '[itemprop="description"]',
+          ];
+          for (const sel of descSelectors) {
+            const el = document.querySelector(sel);
+            if (el) {
+              const text = (el.textContent || '').trim();
+              if (text && text.length > 10) {
+                description = text;
+                break;
+              }
+            }
+          }
+
+          // Fallback to og:description
+          if (!description) {
+            const ogEl = document.querySelector('meta[property="og:description"]');
+            if (ogEl && ogEl.content) description = ogEl.content;
+          }
+
+          return { price, description };
+        })()
+      `) as { price: string | null; description: string | null };
+
+      const html = await page.content();
+      return { html, extracted };
+    } finally {
+      await page.close();
+      await context.close();
+    }
+  }
+
   protected matchesFilters(listing: Partial<RawListing>): boolean {
     const filters = this.ctx.globalConfig.filters;
 

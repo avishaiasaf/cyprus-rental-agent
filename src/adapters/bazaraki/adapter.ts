@@ -2,7 +2,7 @@ import { BaseAdapter } from '../base-adapter.js';
 import type { AdapterContext, DiscoveredListing } from '../../types/adapter.js';
 import type { RawListing } from '../../types/listing.js';
 import { buildIndexUrl } from './constants.js';
-import { parseIndexPage, parseDetailPage } from './parser.js';
+import { parseIndexPage, parseDetailPage, type BrowserExtracted } from './parser.js';
 import { sleep } from '../../utils/sleep.js';
 
 export class BazarakiAdapter extends BaseAdapter {
@@ -55,7 +55,13 @@ export class BazarakiAdapter extends BaseAdapter {
 
     ctx.logger.debug({ source: this.name, url }, 'Scraping detail page');
 
-    const html = await this.fetchWithBrowser(url);
-    return parseDetailPage(html, url, externalId, this.name);
+    // Use enhanced browser fetch that also extracts price/description via page.evaluate()
+    const { html, extracted } = await this.fetchDetailWithBrowser(url);
+    const browserData: BrowserExtracted = {
+      price: extracted.price,
+      description: extracted.description,
+    };
+
+    return parseDetailPage(html, url, externalId, this.name, browserData, ctx.logger);
   }
 }
