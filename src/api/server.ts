@@ -129,9 +129,26 @@ export function startApiServer(port: number, config: AppConfig, orchestrator?: O
       res.status(409).json({ error: 'Scrape cycle already running', running: true });
       return;
     }
+    // Clean up any stale running records before starting
+    await db.cleanupStaleRuns();
     // Run in background, respond immediately
     res.json({ message: 'Scrape cycle started', running: true });
     orchestrator.runFullCycle().catch(() => {});
+  });
+
+  app.post('/api/scrape/stop', async (_req, res) => {
+    if (!orchestrator) {
+      res.status(503).json({ error: 'Orchestrator not available' });
+      return;
+    }
+    if (!orchestrator.isRunning()) {
+      res.json({ message: 'No scrape cycle running', running: false });
+      return;
+    }
+    orchestrator.stop();
+    // Mark current running scrape runs as stopped
+    await db.cleanupStaleRuns(0);
+    res.json({ message: 'Scrape cycle stopped', running: false });
   });
 
   app.get('/api/scrape/status', async (_req, res) => {

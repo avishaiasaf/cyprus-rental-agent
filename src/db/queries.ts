@@ -421,12 +421,18 @@ export async function getScrapeRuns(limit: number = 20): Promise<any[]> {
   return result.rows;
 }
 
-export async function cleanupStaleRuns(): Promise<number> {
+export async function cleanupStaleRuns(olderThanMinutes: number = 30): Promise<number> {
   const pool = getDb();
-  // Mark runs older than 2 hours still in 'running' as 'failed' (process likely crashed)
-  const result = await pool.query(
-    "UPDATE scrape_runs SET status = 'failed', completed_at = NOW(), errors = -1 WHERE status = 'running' AND started_at < NOW() - INTERVAL '2 hours'",
-  );
+  // Mark runs still in 'running' as 'failed' (process likely crashed)
+  // Use olderThanMinutes=0 to mark ALL running runs as failed (e.g. on stop)
+  const result = olderThanMinutes === 0
+    ? await pool.query(
+        "UPDATE scrape_runs SET status = 'failed', completed_at = NOW(), errors = -1 WHERE status = 'running'",
+      )
+    : await pool.query(
+        "UPDATE scrape_runs SET status = 'failed', completed_at = NOW(), errors = -1 WHERE status = 'running' AND started_at < NOW() - $1::interval",
+        [`${olderThanMinutes} minutes`],
+      );
   return result.rowCount ?? 0;
 }
 

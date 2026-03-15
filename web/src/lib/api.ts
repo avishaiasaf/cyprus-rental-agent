@@ -133,6 +133,10 @@ export function triggerScrape() {
   return fetchApi<{ message: string; running: boolean }>('/api/scrape', { method: 'POST' });
 }
 
+export function stopScrape() {
+  return fetchApi<{ message: string; running: boolean }>('/api/scrape/stop', { method: 'POST' });
+}
+
 export function getScrapeStatus() {
   return fetchApi<{ running: boolean }>('/api/scrape/status');
 }

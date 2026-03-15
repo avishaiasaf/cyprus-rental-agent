@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getStats, getScrapeRuns, getSources, triggerScrape, getScrapeStatus } from '@/lib/api';
+import { getStats, getScrapeRuns, getSources, triggerScrape, stopScrape, getScrapeStatus } from '@/lib/api';
 import { Navbar } from '@/components/navbar';
-import { Loader2, Database, Activity, Server, Clock, Play, RefreshCw } from 'lucide-react';
+import { Loader2, Database, Activity, Server, Clock, Play, Square, RefreshCw } from 'lucide-react';
 
 export default function Dashboard() {
   const queryClient = useQueryClient();
@@ -60,6 +60,19 @@ export default function Dashboard() {
     }
   };
 
+  const handleStopScrape = async () => {
+    try {
+      await stopScrape();
+      setScrapeTriggered(false);
+      queryClient.invalidateQueries({ queryKey: ['scrape-status'] });
+      queryClient.invalidateQueries({ queryKey: ['scrape-runs'] });
+      queryClient.invalidateQueries({ queryKey: ['stats'] });
+      queryClient.invalidateQueries({ queryKey: ['sources'] });
+    } catch {
+      // ignore
+    }
+  };
+
   const isLoading = statsLoading || runsLoading || sourcesLoading;
 
   return (
@@ -69,27 +82,31 @@ export default function Dashboard() {
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-bold">Dashboard</h1>
-          <button
-            onClick={handleRunScrape}
-            disabled={isRunning}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              isRunning
-                ? 'bg-yellow-100 text-yellow-700 cursor-not-allowed'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
+          <div className="flex items-center gap-2">
             {isRunning ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Scraping...
+                <span className="flex items-center gap-2 px-3 py-2 bg-yellow-50 text-yellow-700 rounded-lg text-sm font-medium">
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  Scraping...
+                </span>
+                <button
+                  onClick={handleStopScrape}
+                  className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors"
+                >
+                  <Square className="w-4 h-4" />
+                  Stop
+                </button>
               </>
             ) : (
-              <>
+              <button
+                onClick={handleRunScrape}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              >
                 <Play className="w-4 h-4" />
                 Run Scrapers
-              </>
+              </button>
             )}
-          </button>
+          </div>
         </div>
 
         {isLoading && (
