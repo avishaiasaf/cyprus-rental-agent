@@ -27,7 +27,9 @@ export abstract class BaseAdapter implements SourceAdapter {
     if (!text) return null;
     const cleaned = text.replace(/[^\d.,]/g, '').replace(/,/g, '');
     const num = parseFloat(cleaned);
-    return isNaN(num) ? null : num;
+    // Sanity check: reject absurd values (phone numbers, reference IDs, etc.)
+    if (isNaN(num) || num <= 0 || num >= 100_000_000) return null;
+    return num;
   }
 
   protected normalizeDistrict(location: string): string | undefined {

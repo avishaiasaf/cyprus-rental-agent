@@ -319,8 +319,20 @@ function extractDescription($: CheerioAPI, browserData?: BrowserExtracted, logge
 
 function parsePrice(text: string): number | null {
   if (!text) return null;
-  // Remove currency symbols, spaces, "EUR", "/month" etc
+
+  // First try to extract a clean price pattern like "€1,200" or "1200.00"
+  const pricePattern = text.match(/[€$£]?\s*([\d]{1,3}(?:[,.]?\d{3})*(?:\.\d{1,2})?)/);
+  if (pricePattern) {
+    const cleaned = pricePattern[1].replace(/,/g, '');
+    const num = parseFloat(cleaned);
+    // Sanity check: reject prices above 100 million (likely parsing error)
+    if (!isNaN(num) && num > 0 && num < 100_000_000) return num;
+  }
+
+  // Fallback: strip everything non-numeric
   const cleaned = text.replace(/[€$£]/g, '').replace(/[^\d.,]/g, '').replace(/,/g, '');
   const num = parseFloat(cleaned);
-  return isNaN(num) ? null : num;
+  // Sanity check: reject absurd values (phone numbers, reference IDs, etc.)
+  if (isNaN(num) || num <= 0 || num >= 100_000_000) return null;
+  return num;
 }
