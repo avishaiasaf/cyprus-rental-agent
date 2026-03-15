@@ -187,12 +187,24 @@ export class Orchestrator {
         'Listings to scrape',
       );
 
-      // Scrape detail pages
-      for (const disc of newListings) {
+      // Scrape detail pages (cap per cycle to avoid one source blocking others)
+      const MAX_DETAILS_PER_CYCLE = 50;
+      const detailsToScrape = newListings.slice(0, MAX_DETAILS_PER_CYCLE);
+      if (newListings.length > MAX_DETAILS_PER_CYCLE) {
+        this.logger.info(
+          { source: adapter.name, total: newListings.length, capped: MAX_DETAILS_PER_CYCLE },
+          'Capping detail scrapes this cycle (remaining will be scraped next cycle)',
+        );
+      }
+
+      for (const disc of detailsToScrape) {
         if (this.abortController.signal.aborted) break;
 
         try {
           const listing = await adapter.scrapeDetail(disc.url, disc.externalId, ctx);
+
+          // Always use the listingType from discovery (index page knows rent vs sale reliably)
+          listing.listingType = disc.listingType;
 
           // Check cross-source duplicates
           const duplicate = await db.findDuplicate(listing);
@@ -244,11 +256,13 @@ export class Orchestrator {
       }
 
       // Re-scrape existing listings that are missing details (price, description)
-      for (const disc of rescrapeListings) {
+      const rescrapeBatch = rescrapeListings.slice(0, MAX_DETAILS_PER_CYCLE);
+      for (const disc of rescrapeBatch) {
         if (this.abortController.signal.aborted) break;
 
         try {
           const listing = await adapter.scrapeDetail(disc.url, disc.externalId, ctx);
+          listing.listingType = disc.listingType;
           await db.upsertListing(listing);
           updatedCount++;
           this.logger.info({ source: adapter.name, externalId: disc.externalId }, 'Re-scraped listing with missing details');

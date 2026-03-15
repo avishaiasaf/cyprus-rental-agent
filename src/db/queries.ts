@@ -13,7 +13,8 @@ export async function listingExists(source: string, externalId: string): Promise
 export async function listingNeedsRescrape(source: string, externalId: string): Promise<boolean> {
   const pool = getDb();
   const result = await pool.query(
-    'SELECT 1 FROM listings WHERE source = $1 AND external_id = $2 AND (price IS NULL OR description IS NULL OR description = \'\')',
+    `SELECT 1 FROM listings WHERE source = $1 AND external_id = $2
+     AND (price IS NULL OR description IS NULL OR description = '')`,
     [source, externalId],
   );
   return result.rowCount! > 0;
@@ -57,6 +58,7 @@ export async function upsertListing(listing: RawListing): Promise<{ id: number; 
     )
     ON CONFLICT(source, external_id) DO UPDATE SET
       title = EXCLUDED.title,
+      listing_type = EXCLUDED.listing_type,
       price = EXCLUDED.price,
       currency = EXCLUDED.currency,
       price_per_sqm = EXCLUDED.price_per_sqm,
@@ -417,6 +419,15 @@ export async function getScrapeRuns(limit: number = 20): Promise<any[]> {
     [limit],
   );
   return result.rows;
+}
+
+export async function cleanupStaleRuns(): Promise<number> {
+  const pool = getDb();
+  // Mark runs older than 2 hours still in 'running' as 'failed' (process likely crashed)
+  const result = await pool.query(
+    "UPDATE scrape_runs SET status = 'failed', completed_at = NOW(), errors = -1 WHERE status = 'running' AND started_at < NOW() - INTERVAL '2 hours'",
+  );
+  return result.rowCount ?? 0;
 }
 
 // --- Webhook queries ---

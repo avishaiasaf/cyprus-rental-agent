@@ -1,5 +1,6 @@
 import { loadConfig } from './config/loader.js';
 import { initDb, closeDb } from './db/client.js';
+import * as db from './db/queries.js';
 import { createLogger } from './utils/logger.js';
 import { Orchestrator } from './scraper/orchestrator.js';
 import { TelegramNotifier } from './telegram/notifier.js';
@@ -21,6 +22,12 @@ async function main(): Promise<void> {
   // Initialize database
   await initDb(config.database.connection_string);
   logger.info('Database initialized');
+
+  // Clean up stale scrape runs from previous crashes
+  const staleCleanup = await db.cleanupStaleRuns();
+  if (staleCleanup > 0) {
+    logger.info({ count: staleCleanup }, 'Cleaned up stale scrape runs');
+  }
 
   // Create Telegram bot and notifier
   const bot = createBot(config.telegram);
