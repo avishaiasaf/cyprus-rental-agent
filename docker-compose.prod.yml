@@ -1,0 +1,73 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cyprus-rental-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: cyprus_rental
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: pg_isready -U agent -d cyprus_rental
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  agent:
+    build: .
+    container_name: cyprus-rental-agent
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env
+    volumes:
+      - ./data/images:/app/data/images
+      - ./config.yaml:/app/config.yaml:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      - NODE_ENV=production
+      - TZ=Europe/Nicosia
+      - DATABASE_URL=postgresql://agent:${POSTGRES_PASSWORD}@postgres:5432/cyprus_rental
+    shm_size: '256mb'
+    deploy:
+      resources:
+        limits:
+          memory: 1536M
+        reservations:
+          memory: 512M
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    build: ./web
+    container_name: cyprus-rental-web
+    restart: unless-stopped
+    depends_on:
+      - agent
+    ports:
+      - "127.0.0.1:3001:3001"
+    environment:
+      - INTERNAL_API_URL=http://agent:3000
+      - NEXT_PUBLIC_API_URL=
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  pgdata:

@@ -1,0 +1,144 @@
+scrape_interval_minutes: 300  # 5 hours
+
+filters:
+  listing_type: rent          # rent | buy | any
+  locations:
+    - Limassol
+  property_type: house          # apartment | house | studio | villa | land | commercial | any
+  min_bedrooms: 3
+  max_bedrooms: 5
+  min_price_eur: 500
+  max_price_eur: 3500
+  price_interpretation: auto  # auto = monthly for rent, total for buy
+  furnished: any              # true | false | any
+  pets_allowed: any           # true | false | any
+  keywords_include: []        # e.g. ["sea view", "balcony"]
+  keywords_exclude: []        # e.g. ["shared", "student"]
+  max_listing_age_days: 2
+
+proxies:
+  enabled: false
+  urls:
+    # - http://user:pass@proxy1:8080
+    # - http://user:pass@proxy2:8080
+  rotate_strategy: round-robin  # round-robin | random
+
+telegram:
+  bot_token: "${TELEGRAM_BOT_TOKEN}"
+  channel_id: "${TELEGRAM_CHAT_ID}"
+  message_format: detailed    # detailed | compact
+  send_images: true
+  max_images_per_listing: 4
+  max_messages_per_minute: 20
+
+database:
+  type: postgres
+  connection_string: "${DATABASE_URL:-postgresql://agent:changeme@localhost:5432/cyprus_rental}"
+
+browser:
+  headless: true
+  timeout_ms: 30000
+
+health_check:
+  enabled: true
+  port: 3000
+
+apify:
+  api_token: "${APIFY_API_TOKEN}"
+  timeout_seconds: 300
+  max_posts_per_group: 100
+
+facebook_groups:
+  # Optional: path to exported Facebook cookies JSON file for Playwright fallback
+  # cookie_file: ./data/facebook-cookies.json
+  groups:
+    - url: https://www.facebook.com/groups/RentCyprus/
+      name: Rent Cyprus
+    - url: https://www.facebook.com/groups/cyprusrealestatepropertiesandagents/
+      name: Cyprus Real Estate - Properties & Agents
+    - url: https://www.facebook.com/groups/165347793662960/
+      name: Cyprus Real Estate FOR SALE or RENT
+    - url: https://www.facebook.com/groups/cyprus.real.estate.hestify/
+      name: "Κύπρος ακίνητα [Hestify]"
+
+telegram_channels:
+  api_id: ${TELEGRAM_API_ID}
+  api_hash: "${TELEGRAM_API_HASH}"
+  channels:
+    - username: CypRusPropertyChat
+      name: CypRus Property Chat
+    - username: cypruspropertysalerent
+      name: Property Cyprus
+    - username: CypRus_property1
+      name: CypRus Property - Real Estate
+    - username: cyrealestate
+      name: Cyprus Real Estate Buy&Sell
+
+sources:
+  - name: bazaraki
+    enabled: true
+    base_url: https://www.bazaraki.com
+    max_pages: 3
+    delay_between_requests_ms: 3000
+    delay_between_pages_ms: 5000
+
+  - name: dom-com-cy
+    enabled: true
+    base_url: https://dom.com.cy
+    max_pages: 5
+    delay_between_requests_ms: 2000
+    delay_between_pages_ms: 3000
+
+  - name: home-cy
+    enabled: false
+    base_url: https://home.cy
+    max_pages: 3
+    delay_between_requests_ms: 2500
+    delay_between_pages_ms: 4000
+
+  - name: index-cy
+    enabled: false
+    base_url: https://index.cy
+    max_pages: 3
+    delay_between_requests_ms: 2000
+    delay_between_pages_ms: 3000
+
+  - name: buysellcyprus
+    enabled: true
+    base_url: https://www.buysellcyprus.com
+    max_pages: 3
+    delay_between_requests_ms: 2500
+    delay_between_pages_ms: 4000
+
+  - name: spitogatos-cy
+    enabled: true
+    base_url: https://www.spitogatos.com.cy
+    max_pages: 3
+    delay_between_requests_ms: 3000
+    delay_between_pages_ms: 5000
+
+  - name: online-properties
+    enabled: true
+    base_url: https://www.onlineproperties.com.cy
+    max_pages: 3
+    delay_between_requests_ms: 2500
+    delay_between_pages_ms: 4000
+
+  - name: rentals-cyprus
+    enabled: true
+    base_url: https://www.rentalscyprus.com
+    max_pages: 3
+    delay_between_requests_ms: 2500
+    delay_between_pages_ms: 4000
+
+  - name: facebook-groups
+    enabled: true
+    max_pages: 1
+    delay_between_requests_ms: 1000
+    delay_between_pages_ms: 1000
+
+  - name: telegram-channels
+    enabled: true
+    max_pages: 1
+    delay_between_requests_ms: 1000
+    delay_between_pages_ms: 1000

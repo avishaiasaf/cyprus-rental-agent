@@ -1,0 +1,9 @@
+node_modules
+dist
+data
+.env
+config.yaml
+tests
+*.md
+.git
+.DS_Store

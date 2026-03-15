@@ -1,0 +1,45 @@
+{
+  "name": "cyprus-rental-agent",
+  "version": "1.0.0",
+  "description": "Cyprus property listing aggregator with Telegram notifications",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@grammyjs/auto-retry": "^2.0.2",
+    "apify-client": "^2.22.2",
+    "cheerio": "^1.0.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^4.21.0",
+    "grammy": "^1.31.0",
+    "js-yaml": "^4.1.0",
+    "node-cron": "^3.0.3",
+    "pg": "^8.20.0",
+    "pino": "^9.5.0",
+    "playwright": "^1.49.0",
+    "telegram": "^2.26.22",
+    "undici": "^7.1.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.10.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/pg": "^8.18.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
