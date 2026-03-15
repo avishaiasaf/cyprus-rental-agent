@@ -1,4 +1,4 @@
-import type { Browser } from 'playwright';
+import type { Browser } from 'patchright';
 import type { RawListing } from './listing.js';
 import type { AppConfig, SourceConfig } from '../config/schema.js';
 import type { HttpClient } from '../scraper/http-client.js';

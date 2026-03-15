@@ -1,7 +1,8 @@
-import type { Browser } from 'playwright';
+import type { Browser } from 'patchright';
 import type { FacebookPost } from './parser.js';
 import type { Logger } from 'pino';
 import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
 interface Cookie {
   name: string;
@@ -37,14 +38,15 @@ export async function scrapeGroupWithPlaywright(
   const timeoutMs = opts.timeoutMs ?? 30_000;
   const maxPosts = opts.maxPosts ?? 100;
 
-  // Load cookies
+  // Load cookies (resolve relative paths from CWD)
+  const resolvedCookieFile = resolve(cookieFile);
   let cookies: Cookie[];
   try {
-    const raw = await readFile(cookieFile, 'utf-8');
+    const raw = await readFile(resolvedCookieFile, 'utf-8');
     cookies = JSON.parse(raw);
   } catch (err) {
-    logger.error({ err, cookieFile }, 'Failed to read Facebook cookie file');
-    throw new Error(`Cannot read cookie file: ${cookieFile}`);
+    logger.error({ err, cookieFile: resolvedCookieFile }, 'Failed to read Facebook cookie file');
+    throw new Error(`Cannot read cookie file: ${resolvedCookieFile}`);
   }
 
   const context = await browser.newContext({

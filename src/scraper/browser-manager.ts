@@ -1,4 +1,4 @@
-import { chromium, type Browser, type BrowserContext } from 'playwright';
+import { chromium, type Browser, type BrowserContext } from 'patchright';
 import { getRandomUserAgent } from '../utils/user-agents.js';
 import type { BrowserConfig, ProxyConfig } from '../config/schema.js';
 

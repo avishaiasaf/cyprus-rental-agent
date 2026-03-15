@@ -14,7 +14,7 @@ import { scrapeGroupWithPlaywright } from './playwright-scraper.js';
  */
 export class FacebookGroupsAdapter extends BaseAdapter {
   readonly name = 'facebook-groups';
-  readonly requiresBrowser = false; // true only when Playwright fallback kicks in
+  readonly requiresBrowser = true; // Needed for Playwright fallback when Apify unavailable
 
   // Cache: externalId -> FacebookPost (populated during discovery, consumed during detail)
   private postCache = new Map<string, FacebookPost>();
@@ -35,15 +35,6 @@ export class FacebookGroupsAdapter extends BaseAdapter {
 
     // Decide scraping strategy: Apify → Playwright → skip
     const useApify = !!apifyConfig?.api_token;
-    const usePlaywright = !useApify && !!fbConfig.cookie_file && !!ctx.browser;
-
-    if (!useApify && !usePlaywright) {
-      ctx.logger.warn(
-        { source: this.name },
-        'Neither Apify API token nor Playwright cookie_file + browser configured, skipping Facebook groups',
-      );
-      return;
-    }
 
     // Lazy import apify-client only if needed
     let apifyClient: any = null;
@@ -52,12 +43,11 @@ export class FacebookGroupsAdapter extends BaseAdapter {
         const mod = await import('apify-client');
         apifyClient = new mod.ApifyClient({ token: apifyConfig!.api_token });
       } catch {
-        ctx.logger.error(
+        ctx.logger.warn(
           { source: this.name },
-          'apify-client package not installed. Run: npm install apify-client',
+          'apify-client package not installed (run: npm install apify-client), will try Playwright fallback',
         );
-        // Fall through to Playwright if possible
-        if (!fbConfig.cookie_file || !ctx.browser) return;
+        // Fall through to Playwright fallback per-group below
       }
     }
 
@@ -82,26 +72,38 @@ export class FacebookGroupsAdapter extends BaseAdapter {
         }
       }
 
-      // Strategy 2: Playwright fallback
-      if (posts.length === 0 && fbConfig.cookie_file && ctx.browser) {
-        try {
-          ctx.logger.info(
+      // Strategy 2: Playwright fallback (when Apify not configured or failed)
+      if (posts.length === 0) {
+        if (!fbConfig.cookie_file) {
+          ctx.logger.warn(
             { source: this.name, group: group.name || group.url },
-            'Scraping Facebook group via Playwright',
+            'No Apify results and no cookie_file configured. Set facebook_groups.cookie_file in config.yaml to enable Playwright scraping.',
           );
-          posts = await scrapeGroupWithPlaywright(group.url, {
-            browser: ctx.browser,
-            cookieFile: fbConfig.cookie_file,
-            logger: ctx.logger,
-            timeoutMs: ctx.globalConfig.browser.timeout_ms,
-            maxPosts: apifyConfig?.max_posts_per_group ?? 100,
-            signal: ctx.signal,
-          });
-        } catch (err) {
-          ctx.logger.error(
-            { source: this.name, group: group.name || group.url, err },
-            'Playwright fallback failed for Facebook group',
+        } else if (!ctx.browser) {
+          ctx.logger.warn(
+            { source: this.name, group: group.name || group.url },
+            'No Apify results and browser not available for Playwright fallback',
           );
+        } else {
+          try {
+            ctx.logger.info(
+              { source: this.name, group: group.name || group.url },
+              'Scraping Facebook group via Playwright',
+            );
+            posts = await scrapeGroupWithPlaywright(group.url, {
+              browser: ctx.browser,
+              cookieFile: fbConfig.cookie_file,
+              logger: ctx.logger,
+              timeoutMs: ctx.globalConfig.browser.timeout_ms,
+              maxPosts: apifyConfig?.max_posts_per_group ?? 100,
+              signal: ctx.signal,
+            });
+          } catch (err) {
+            ctx.logger.error(
+              { source: this.name, group: group.name || group.url, err },
+              'Playwright fallback failed for Facebook group',
+            );
+          }
         }
       }
 
@@ -186,8 +188,7 @@ export class FacebookGroupsAdapter extends BaseAdapter {
         );
 
         const run = await client.actor(actorId).call(input, {
-          timeoutSecs: apifyConfig.timeout_seconds,
-          waitSecs: apifyConfig.timeout_seconds,
+          timeout: apifyConfig.timeout_seconds,
         });
 
         if (!run?.defaultDatasetId) {

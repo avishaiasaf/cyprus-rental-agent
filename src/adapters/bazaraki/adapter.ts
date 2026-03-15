@@ -4,7 +4,7 @@ import type { RawListing } from '../../types/listing.js';
 import { buildIndexUrl } from './constants.js';
 import { parseIndexPage, parseDetailPage, isAntiBot, type BrowserExtracted } from './parser.js';
 import { sleep } from '../../utils/sleep.js';
-import type { BrowserContext, Page } from 'playwright';
+import type { BrowserContext, Page } from 'patchright';
 
 export class BazarakiAdapter extends BaseAdapter {
   readonly name = 'bazaraki';
