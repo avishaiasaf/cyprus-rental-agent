@@ -100,27 +100,31 @@ Implementation:
 
 ### 1D. Search Enter Key Fix (P0 #2)
 
-**Current state**: The `listing-filters.tsx` already has `<form onSubmit={handleSubmit}>` with `e.preventDefault()` and the search input is inside it. The Enter key SHOULD work. Investigating: the `<form>` wraps only the search bar, not the filters. This looks correct.
+**Current state**: The `listing-filters.tsx` already has `<form onSubmit={handleSubmit}>` with `e.preventDefault()` and the search input (`name="q"`, `defaultValue`) is inside it with a submit button. The native form submission on Enter key **should already work** since it's a standard `<form>` with a `type="submit"` button.
 
-**Verify & Fix**: The form submit handler already calls `e.preventDefault()` and uses `updateParams`. The issue may be that the input uses `name="q"` and `defaultValue` (uncontrolled). On Enter, `handleSubmit` reads from `FormData` which should work. Test to confirm, but likely this is already working in current code. If not, convert to controlled input with `onChange` + state + submit on Enter.
+**Likely status**: This is probably already working correctly. The audit may have tested a stale build or there was a transient issue. The `handleSubmit` reads `FormData` which correctly extracts the `name="q"` input value on Enter.
 
-**Modify: `web/src/components/listing-filters.tsx`**
-- Add explicit `onKeyDown` handler on the search input as a safety net: if `e.key === 'Enter'`, submit the form programmatically
-- This ensures Enter works even if there's a subtle form submission issue
+**Action**: Verify in testing. If it genuinely fails, the likely cause is the `defaultValue` not syncing with URL params on navigation. In that case, convert the search input to a controlled input with `useState` initialized from `searchParams.get('q')`, and add a `key={searchParams.get('q')}` to force re-render on URL changes. Do NOT add a redundant `onKeyDown` handler -- that would duplicate native form behavior.
 
 ### 1E. Price Filter Validation (P0 #3)
 
 **Modify: `web/src/components/listing-filters.tsx`**
+- **Current state**: Price inputs are already **controlled** (`value={searchParams.get('min_price') ?? ''}` with `onChange`), and every keystroke immediately calls `updateParams` which triggers a URL change and API refetch. This is aggressive -- no debouncing.
 - Add validation: when `min_price` changes, if `min_price > max_price` and both are set, show inline error text "Min must be less than max" and do NOT update URL params
 - Add validation: when `max_price` changes, same check
-- Use local state for price inputs (convert from uncontrolled `value` to debounced controlled)
+- Convert price inputs to **local state with debounce** (currently they write to URL on every keystroke which is expensive). Use `useState` for the input value, debounce 500ms before calling `updateParams`.
 - Add `aria-invalid` attribute when validation fails
 - Prices must be non-negative
 
-**Modify: `src/api/server.ts`** (backend validation)
+**Modify: `src/api/server.ts`** (backend validation + filter forwarding bug fix)
 - In `/api/listings` handler, after parsing `min_price` and `max_price`:
   - If both provided and `min_price > max_price`, return 400: `{ error: "min_price must be <= max_price" }`
   - If either is negative, return 400
+- **BUG FIX**: The `getListings` code path (when `q` is absent) currently only forwards `type`, `district`, `min_price`, `max_price`, and `source`. It is **missing** `property_type`, `min_bedrooms`, `max_bedrooms`, `furnished`, and `sort`. These filters silently do nothing when the user has no search text. Fix: forward all filter params to `getListings` as well.
+
+**Modify: `src/db/queries.ts`** (extend `getListings` to match `searchListings`)
+- Add missing filter params to `getListings`: `propertyType`, `minBedrooms`, `maxBedrooms`, `furnished`, `sort`
+- These are already supported in `searchListings` but not in `getListings`, causing inconsistent behavior
 
 **New file: `web/src/lib/validation.ts`**
 - `validatePriceRange(min?: number, max?: number): { valid: boolean; error?: string }`
@@ -193,8 +197,9 @@ const PRICE_PRESETS = [
 - `min_bathrooms`, `max_bathrooms` -- pass to DB queries
 - `min_area`, `max_area` -- pass to DB queries
 
-**Modify: `src/db/queries.ts`** -- extend `searchListings` and `getListings`:
-- Add `minBathrooms`, `maxBathrooms`, `minArea`, `maxArea` filter params
+**Modify: `src/db/queries.ts`** -- extend both query functions:
+- `searchListings` already supports `minBedrooms`, `maxBedrooms`, `furnished`, `propertyType`, `sort`. Add NEW: `minBathrooms`, `maxBathrooms`, `minArea`, `maxArea`
+- `getListings` needs the same new params PLUS the existing ones it's missing (see Phase 1E bug fix)
 - Add WHERE clauses: `bathrooms >= $N`, `area_sqm >= $N`, etc.
 
 ### 2C. Phase 2 Tests
@@ -523,7 +528,7 @@ These are larger features that require more infrastructure:
 
 ## File Summary
 
-### New Files (23)
+### New Files (24)
 | File | Phase | Purpose |
 |------|-------|---------|
 | `web/vitest.config.ts` | 1A | Frontend test config |
@@ -549,17 +554,19 @@ These are larger features that require more infrastructure:
 | `web/src/lib/__tests__/validation.test.ts` | 1F | Validation unit tests |
 | `web/src/lib/__tests__/image-proxy.test.ts` | 1F | Image proxy unit tests |
 | `web/src/app/api/image-proxy/__tests__/route.test.ts` | 1F | Image proxy API tests |
+| `web/src/lib/__tests__/filters.test.ts` | 2C | Filter serialization tests |
 
-### New Test Files (5)
+### New Test Files (6)
 | File | Phase | Test Count |
 |------|-------|------------|
 | `web/src/lib/__tests__/validation.test.ts` | 1F | ~6 |
 | `web/src/lib/__tests__/image-proxy.test.ts` | 1F | ~6 |
 | `web/src/app/api/image-proxy/__tests__/route.test.ts` | 1F | ~5 |
 | `web/src/components/__tests__/listing-filters.test.tsx` | 2C | ~10 |
+| `web/src/lib/__tests__/filters.test.ts` | 2C | ~3 |
 | `web/src/components/__tests__/listing-card.test.tsx` | 3B | ~9 |
 
-**Total: ~36 tests**
+**Total: ~39 tests**
 
 ### Modified Files (10)
 | File | Phases | Changes |
@@ -574,8 +581,8 @@ These are larger features that require more infrastructure:
 | `web/src/components/listing-filters.tsx` | 1D, 1E, 2A, 2B | Enter fix, validation, mobile, UX |
 | `web/src/components/navbar.tsx` | 2A | Mobile hamburger menu |
 | `web/src/lib/api.ts` | 4B | Exclude param support |
-| `src/api/server.ts` | 1E, 2B, 4B | Price validation, new filters, exclude |
-| `src/db/queries.ts` | 2B | Bathroom/area filter support |
+| `src/api/server.ts` | 1E, 2B, 4B | Price validation, filter forwarding bug fix, new filters, exclude |
+| `src/db/queries.ts` | 1E, 2B | Filter parity with searchListings, bathroom/area filter support |
 
 ---
 
@@ -640,11 +647,14 @@ No Tailwind config file is needed for v4 (it uses CSS-first configuration). Cust
 The backend (`src/api/server.ts` + `src/db/queries.ts`) needs minimal changes:
 
 1. **Price validation** (Phase 1E): Add 400 response for invalid price ranges in `/api/listings`
-2. **New filter params** (Phase 2B): Forward `min_bathrooms`, `max_bathrooms`, `min_area`, `max_area` to DB queries
-3. **Exclude param** (Phase 4B): Add `exclude` query param to `/api/listings` to exclude a listing by ID
-4. **DB query extensions** (Phase 2B): Add WHERE clauses for bathrooms and area filters in `searchListings` and `getListings`
+2. **Filter forwarding bug fix** (Phase 1E): The `getListings` code path (no `q` param) silently ignores `property_type`, `min_bedrooms`, `max_bedrooms`, `furnished`, and `sort`. Fix both `server.ts` and `queries.ts` so `getListings` accepts and applies all the same filters as `searchListings`.
+3. **New filter params** (Phase 2B): Forward `min_bathrooms`, `max_bathrooms`, `min_area`, `max_area` to DB queries
+4. **Exclude param** (Phase 4B): Add `exclude` query param to `/api/listings` to exclude a listing by ID
+5. **DB query extensions** (Phase 2B): Add WHERE clauses for bathrooms and area filters in both `searchListings` and `getListings`
 
 No new backend routes except the image proxy (which is a Next.js API route in `web/`, not in the Express backend).
+
+**Note**: The `nuqs` package is already in `web/package.json` dependencies but is unused. Consider leveraging it for URL-synced filter state in Phase 2B/7A instead of raw `useSearchParams`.
 
 ---
 
