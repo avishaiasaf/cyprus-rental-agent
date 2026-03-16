@@ -10,3 +10,4 @@ web/node_modules/
 backups/
 .claude/
 *.session
+.worktrees/
