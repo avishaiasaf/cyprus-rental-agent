@@ -236,9 +236,19 @@ export async function getListings(opts: {
   offset?: number;
   listingType?: string;
   district?: string;
+  propertyType?: string;
   minPrice?: number;
   maxPrice?: number;
+  minBedrooms?: number;
+  maxBedrooms?: number;
+  minBathrooms?: number;
+  maxBathrooms?: number;
+  minArea?: number;
+  maxArea?: number;
+  furnished?: boolean;
   source?: string;
+  sort?: string;
+  exclude?: number;
   activeOnly?: boolean;
 }): Promise<{ listings: StoredListing[]; total: number }> {
   const pool = getDb();
@@ -257,6 +267,10 @@ export async function getListings(opts: {
     conditions.push(`district = $${paramIdx++}`);
     params.push(opts.district);
   }
+  if (opts.propertyType) {
+    conditions.push(`property_type = $${paramIdx++}`);
+    params.push(opts.propertyType);
+  }
   if (opts.minPrice != null) {
     conditions.push(`price >= $${paramIdx++}`);
     params.push(opts.minPrice);
@@ -265,17 +279,61 @@ export async function getListings(opts: {
     conditions.push(`price <= $${paramIdx++}`);
     params.push(opts.maxPrice);
   }
+  if (opts.minBedrooms != null) {
+    conditions.push(`bedrooms >= $${paramIdx++}`);
+    params.push(opts.minBedrooms);
+  }
+  if (opts.maxBedrooms != null) {
+    conditions.push(`bedrooms <= $${paramIdx++}`);
+    params.push(opts.maxBedrooms);
+  }
+  if (opts.minBathrooms != null) {
+    conditions.push(`bathrooms >= $${paramIdx++}`);
+    params.push(opts.minBathrooms);
+  }
+  if (opts.maxBathrooms != null) {
+    conditions.push(`bathrooms <= $${paramIdx++}`);
+    params.push(opts.maxBathrooms);
+  }
+  if (opts.minArea != null) {
+    conditions.push(`area_sqm >= $${paramIdx++}`);
+    params.push(opts.minArea);
+  }
+  if (opts.maxArea != null) {
+    conditions.push(`area_sqm <= $${paramIdx++}`);
+    params.push(opts.maxArea);
+  }
+  if (opts.furnished != null) {
+    conditions.push(`furnished = $${paramIdx++}`);
+    params.push(opts.furnished);
+  }
   if (opts.source) {
     conditions.push(`source = $${paramIdx++}`);
     params.push(opts.source);
   }
+  if (opts.exclude != null) {
+    conditions.push(`id != $${paramIdx++}`);
+    params.push(opts.exclude);
+  }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  // Sort
+  let orderBy = 'first_seen_at DESC';
+  if (opts.sort) {
+    const sortMap: Record<string, string> = {
+      'price_asc': 'price ASC NULLS LAST',
+      'price_desc': 'price DESC NULLS LAST',
+      'newest': 'first_seen_at DESC',
+      'oldest': 'first_seen_at ASC',
+    };
+    orderBy = sortMap[opts.sort] || orderBy;
+  }
 
   const [countRes, listingsRes] = await Promise.all([
     pool.query(`SELECT COUNT(*) as c FROM listings ${where}`, params),
     pool.query(
-      `SELECT * FROM listings ${where} ORDER BY first_seen_at DESC LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
+      `SELECT * FROM listings ${where} ORDER BY ${orderBy} LIMIT $${paramIdx++} OFFSET $${paramIdx++}`,
       [...params, opts.limit ?? 50, opts.offset ?? 0],
     ),
   ]);
@@ -295,9 +353,14 @@ export async function searchListings(opts: {
   maxPrice?: number;
   minBedrooms?: number;
   maxBedrooms?: number;
+  minBathrooms?: number;
+  maxBathrooms?: number;
+  minArea?: number;
+  maxArea?: number;
   furnished?: boolean;
   source?: string;
   sort?: string;
+  exclude?: number;
   limit?: number;
   offset?: number;
 }): Promise<{ listings: StoredListing[]; total: number }> {
@@ -342,6 +405,22 @@ export async function searchListings(opts: {
     conditions.push(`bedrooms <= $${paramIdx++}`);
     params.push(opts.maxBedrooms);
   }
+  if (opts.minBathrooms != null) {
+    conditions.push(`bathrooms >= $${paramIdx++}`);
+    params.push(opts.minBathrooms);
+  }
+  if (opts.maxBathrooms != null) {
+    conditions.push(`bathrooms <= $${paramIdx++}`);
+    params.push(opts.maxBathrooms);
+  }
+  if (opts.minArea != null) {
+    conditions.push(`area_sqm >= $${paramIdx++}`);
+    params.push(opts.minArea);
+  }
+  if (opts.maxArea != null) {
+    conditions.push(`area_sqm <= $${paramIdx++}`);
+    params.push(opts.maxArea);
+  }
   if (opts.furnished != null) {
     conditions.push(`furnished = $${paramIdx++}`);
     params.push(opts.furnished);
@@ -349,6 +428,10 @@ export async function searchListings(opts: {
   if (opts.source) {
     conditions.push(`source = $${paramIdx++}`);
     params.push(opts.source);
+  }
+  if (opts.exclude != null) {
+    conditions.push(`id != $${paramIdx++}`);
+    params.push(opts.exclude);
   }
 
   // Sort override

@@ -30,22 +30,57 @@ export function startApiServer(port: number, config: AppConfig, orchestrator?: O
       const page = Math.max(1, parseInt(q.page ?? '1', 10));
       const offset = (page - 1) * perPage;
 
+      // Parse common filter params
+      const minPrice = q.min_price ? parseFloat(q.min_price) : undefined;
+      const maxPrice = q.max_price ? parseFloat(q.max_price) : undefined;
+      const minBedrooms = q.min_bedrooms ? parseInt(q.min_bedrooms, 10) : undefined;
+      const maxBedrooms = q.max_bedrooms ? parseInt(q.max_bedrooms, 10) : undefined;
+      const minBathrooms = q.min_bathrooms ? parseInt(q.min_bathrooms, 10) : undefined;
+      const maxBathrooms = q.max_bathrooms ? parseInt(q.max_bathrooms, 10) : undefined;
+      const minArea = q.min_area ? parseFloat(q.min_area) : undefined;
+      const maxArea = q.max_area ? parseFloat(q.max_area) : undefined;
+      const furnished = q.furnished === 'true' ? true : q.furnished === 'false' ? false : undefined;
+      const exclude = q.exclude ? parseInt(q.exclude, 10) : undefined;
+
+      // Price validation
+      if (minPrice != null && minPrice < 0) {
+        res.status(400).json({ error: 'min_price cannot be negative' });
+        return;
+      }
+      if (maxPrice != null && maxPrice < 0) {
+        res.status(400).json({ error: 'max_price cannot be negative' });
+        return;
+      }
+      if (minPrice != null && maxPrice != null && minPrice > maxPrice) {
+        res.status(400).json({ error: 'min_price must be <= max_price' });
+        return;
+      }
+
+      const commonFilters = {
+        listingType: q.type,
+        district: q.district,
+        propertyType: q.property_type,
+        minPrice,
+        maxPrice,
+        minBedrooms,
+        maxBedrooms,
+        minBathrooms,
+        maxBathrooms,
+        minArea,
+        maxArea,
+        furnished,
+        source: q.source,
+        sort: q.sort,
+        exclude,
+        limit: perPage,
+        offset,
+      };
+
       // If full-text query provided, use searchListings, otherwise getListings
       if (q.q) {
         const { listings, total } = await db.searchListings({
           query: q.q,
-          listingType: q.type,
-          district: q.district,
-          propertyType: q.property_type,
-          minPrice: q.min_price ? parseFloat(q.min_price) : undefined,
-          maxPrice: q.max_price ? parseFloat(q.max_price) : undefined,
-          minBedrooms: q.min_bedrooms ? parseInt(q.min_bedrooms, 10) : undefined,
-          maxBedrooms: q.max_bedrooms ? parseInt(q.max_bedrooms, 10) : undefined,
-          furnished: q.furnished === 'true' ? true : q.furnished === 'false' ? false : undefined,
-          source: q.source,
-          sort: q.sort,
-          limit: perPage,
-          offset,
+          ...commonFilters,
         });
 
         res.json({
@@ -56,15 +91,7 @@ export function startApiServer(port: number, config: AppConfig, orchestrator?: O
           listings: listings.map(normalizeListing),
         });
       } else {
-        const { listings, total } = await db.getListings({
-          listingType: q.type,
-          district: q.district,
-          minPrice: q.min_price ? parseFloat(q.min_price) : undefined,
-          maxPrice: q.max_price ? parseFloat(q.max_price) : undefined,
-          source: q.source,
-          limit: perPage,
-          offset,
-        });
+        const { listings, total } = await db.getListings(commonFilters);
 
         res.json({
           total,

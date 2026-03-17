@@ -8,7 +8,10 @@ import { getListings } from '@/lib/api';
 import { ListingCard } from '@/components/listing-card';
 import { ListingFilters } from '@/components/listing-filters';
 import { Navbar } from '@/components/navbar';
-import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Hero } from '@/components/hero';
+import { Footer } from '@/components/footer';
+import { SkeletonGrid } from '@/components/skeleton';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 function SearchPage() {
   const searchParams = useSearchParams();
@@ -19,24 +22,26 @@ function SearchPage() {
   });
   if (!params.page) params.page = '1';
 
+  // Only show hero if there are no search/filter params
+  const hasFilters = Object.keys(params).some(
+    (k) => k !== 'page' && k !== 'sort',
+  );
+
+  const page = parseInt(params.page, 10);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['listings', params],
     queryFn: () => getListings(params),
   });
 
-  const page = parseInt(params.page, 10);
-
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
+      {!hasFilters && <Hero />}
       <ListingFilters />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6">
-        {isLoading && (
-          <div className="flex justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-          </div>
-        )}
+      <main id="main-content" className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {isLoading && <SkeletonGrid />}
 
         {error && (
           <div className="text-center py-20 text-red-500">
@@ -66,7 +71,7 @@ function SearchPage() {
 
             {/* Pagination */}
             {data.total_pages > 1 && (
-              <div className="flex justify-center items-center gap-4 mt-8">
+              <nav aria-label="Pagination" className="flex flex-col sm:flex-row justify-center items-center gap-4 mt-8">
                 {page > 1 ? (
                   <Link
                     href={`/?${new URLSearchParams({ ...params, page: String(page - 1) }).toString()}`}
@@ -75,7 +80,7 @@ function SearchPage() {
                     <ChevronLeft className="w-4 h-4" /> Previous
                   </Link>
                 ) : (
-                  <span className="px-3 py-1.5 text-sm text-gray-300">
+                  <span className="px-3 py-1.5 text-sm text-gray-400" aria-disabled="true">
                     <ChevronLeft className="w-4 h-4 inline" /> Previous
                   </span>
                 )}
@@ -92,15 +97,17 @@ function SearchPage() {
                     Next <ChevronRight className="w-4 h-4" />
                   </Link>
                 ) : (
-                  <span className="px-3 py-1.5 text-sm text-gray-300">
+                  <span className="px-3 py-1.5 text-sm text-gray-400" aria-disabled="true">
                     Next <ChevronRight className="w-4 h-4 inline" />
                   </span>
                 )}
-              </div>
+              </nav>
             )}
           </>
         )}
       </main>
+
+      <Footer />
     </div>
   );
 }
