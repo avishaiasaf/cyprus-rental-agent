@@ -1,10 +1,8 @@
-// SSR (server-side) uses Docker-internal URL; client-side uses relative paths through reverse proxy
-const API_BASE = typeof window === 'undefined'
-  ? (process.env.INTERNAL_API_URL || 'http://localhost:3000')
-  : (process.env.NEXT_PUBLIC_API_URL || '');
+// All API calls now go through relative paths to Next.js API routes (same origin)
+// No more INTERNAL_API_URL vs NEXT_PUBLIC_API_URL split
 
 export async function fetchApi<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const res = await fetch(path, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -131,10 +129,6 @@ export function deleteWebhook(id: string) {
 
 export function triggerScrape() {
   return fetchApi<{ message: string; running: boolean }>('/api/scrape', { method: 'POST' });
-}
-
-export function stopScrape() {
-  return fetchApi<{ message: string; running: boolean }>('/api/scrape/stop', { method: 'POST' });
 }
 
 export function getScrapeStatus() {

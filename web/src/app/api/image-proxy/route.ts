@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { isValidImageUrl, isPrivateHost } from '@/lib/image-proxy';
 
-const MAX_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_SIZE = 4 * 1024 * 1024; // 4MB (Vercel Hobby response limit is 4.5MB)
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);

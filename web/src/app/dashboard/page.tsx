@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getStats, getScrapeRuns, getSources, triggerScrape, stopScrape, getScrapeStatus } from '@/lib/api';
+import { getStats, getScrapeRuns, getSources, triggerScrape } from '@/lib/api';
 import { Navbar } from '@/components/navbar';
 import { Footer } from '@/components/footer';
 import { ConfirmDialog } from '@/components/confirm-dialog';
@@ -32,13 +32,11 @@ export default function Dashboard() {
     refetchInterval: scrapeTriggered ? 10000 : false,
   });
 
-  const { data: scrapeStatus } = useQuery({
-    queryKey: ['scrape-status'],
-    queryFn: getScrapeStatus,
-    refetchInterval: scrapeTriggered ? 3000 : 15000,
-  });
-
-  const isRunning = scrapeStatus?.running ?? false;
+  // Derive running status from latest scrape run
+  const isRunning = useMemo(() => {
+    if (!runs || runs.length === 0) return false;
+    return runs[0].status === 'running';
+  }, [runs]);
 
   // Auto-stop polling when scrape completes
   if (scrapeTriggered && !isRunning) {
@@ -65,17 +63,10 @@ export default function Dashboard() {
     }
   };
 
-  const handleStopScrape = async () => {
-    try {
-      await stopScrape();
-      setScrapeTriggered(false);
-      queryClient.invalidateQueries({ queryKey: ['scrape-status'] });
-      queryClient.invalidateQueries({ queryKey: ['scrape-runs'] });
-      queryClient.invalidateQueries({ queryKey: ['stats'] });
-      queryClient.invalidateQueries({ queryKey: ['sources'] });
-    } catch {
-      // ignore
-    }
+  const handleStopScrape = () => {
+    // Crawlers run on GitHub Actions — cannot be stopped from the UI.
+    // Just stop polling.
+    setScrapeTriggered(false);
   };
 
   // Filter runs by source
