@@ -58,7 +58,10 @@ export const HealthCheckSchema = z.object({
 });
 
 export const ApifyConfigSchema = z.object({
-  api_token: z.string().min(1),
+  api_token: z.preprocess(
+    (v) => (v === '' || v === null || v === undefined ? undefined : v),
+    z.string().optional(),
+  ),
   timeout_seconds: z.number().min(30).default(300),
   max_posts_per_group: z.number().min(1).default(100),
 });
