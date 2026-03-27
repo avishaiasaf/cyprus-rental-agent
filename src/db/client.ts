@@ -13,6 +13,11 @@ export async function initDb(connectionString: string): Promise<pg.Pool> {
     connectionTimeoutMillis: 5000,
   });
 
+  // Neon pooler doesn't set search_path by default
+  pool.on('connect', (client: pg.PoolClient) => {
+    client.query('SET search_path TO public');
+  });
+
   // Verify connectivity
   const client = await pool.connect();
   try {
